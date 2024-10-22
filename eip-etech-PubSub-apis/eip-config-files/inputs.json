@@ -1,6 +1,6 @@
 {
     "publisherApiGatewayHost":"itwk34s9rf.execute-api.eu-west-1.amazonaws.com",
     "publisherCognitoHost":"eip-etech-internal.auth.eu-west-1.amazoncognito.com",
-    "InstanceName": "etech-registration",
+    "InstanceName": "etech-registration-ic",
     "Region": "eu-west-1"
 }
