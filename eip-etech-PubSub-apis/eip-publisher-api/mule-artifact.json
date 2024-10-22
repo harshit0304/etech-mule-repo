@@ -1,0 +1,4 @@
+{
+  "minMuleVersion": "4.6.0",
+  "secureProperties": ["aws.cognito.client_id", "aws.cognito.client_secret","keyToEncrypt","anypoint.platform.client_id","anypoint.platform.client_secret"]
+}

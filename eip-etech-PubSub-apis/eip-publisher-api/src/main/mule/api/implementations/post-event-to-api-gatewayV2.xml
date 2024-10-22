@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:oauth="http://www.mulesoft.org/schema/mule/oauth" xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/oauth http://www.mulesoft.org/schema/mule/oauth/current/mule-oauth.xsd">
+
+	<http:request-config name="HTTP_Request_configuration_aws_cognito" doc:name="HTTP Request configuration" doc:id="659b801e-19ca-461a-99db-2bb6ef06902d" >
+    <http:request-connection protocol="HTTPS" host="${aws.cognito.host}" />
+  </http:request-config>
+  <sub-flow name="post-event-to-api-gateway" doc:id="d3ccea7a-3697-4b43-88cd-edefe9da4ba8" >
+		<ee:transform doc:name="topic-name" doc:id="2e114425-a692-430a-a4c4-b8d82cd8bbd1">
+			<ee:variables>
+				<ee:set-variable variableName="initialPayload"><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-variable>
+        <ee:set-variable variableName="topicName" ><![CDATA[attributes.headers.'topic-name']]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<logger level="INFO" doc:name="Logger" doc:id="2394d83b-5af2-4337-8fa0-b8a350b2d87f" message="#[event : vars.initialPayload]"/>
+    <try doc:name="Try" doc:id="eb1f6272-e8e7-4d2e-a99a-5df14b119922" >
+      <http:request method="POST" doc:name="Event Request" doc:id="6dde85f6-55e1-438d-ad04-b0d9a234b8aa" config-ref="HTTP_Request_configuration_Cognito" path='#[vars.topicName]' >
+					</http:request>
+                    <logger level="INFO" doc:name="Event Published" doc:id="71d4c95e-080d-4d10-8c77-1b755ed0634c" message="Event Published with payload #[payload]"/>
+          
+					<ee:transform doc:name="payload" doc:id="d718ea06-a622-48d8-ab54-ef023263c1ea">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+    "success": true,
+    "payload": vars.initialPayload,
+    "message": "Successfully Published event"
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+				
+			<error-handler >
+				<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="37d0c6c1-571b-4acc-a8dc-e3cb34ab2838" >
+					<set-variable value="#[error.errorMessage.attributes.statusCode]" doc:name="httpStatus" doc:id="96f1ecbb-3360-46cb-93a6-523e7093a852" variableName="httpStatus" />
+					<ee:transform doc:name="Transform Message" doc:id="83910df4-2528-4635-9ac5-8dd328f1f63b">
+						<ee:message>
+							<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+ { "code": error.errorMessage.attributes.statusCode default 500,
+        "message": error.errorType.identifier,
+		description: error.description,
+        "correlationId": correlationId,
+        "dateTime": now()
+        
+        }]]></ee:set-payload>
+						</ee:message>
+					</ee:transform>
+					<logger level="INFO" doc:name="payload" doc:id="6063a049-93ad-4c53-8b35-3583f47d6b3a" message="payload" />
+				</on-error-propagate>
+			</error-handler>
+		</try>
+	</sub-flow>
+</mule>

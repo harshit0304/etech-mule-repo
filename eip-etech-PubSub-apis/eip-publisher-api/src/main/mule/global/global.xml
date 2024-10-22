@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:oauth="http://www.mulesoft.org/schema/mule/oauth"
+	xmlns:os="http://www.mulesoft.org/schema/mule/os"
+	xmlns:anypoint-mq="http://www.mulesoft.org/schema/mule/anypoint-mq"
+	xmlns:api-gateway="http://www.mulesoft.org/schema/mule/api-gateway" xmlns:apikit="http://www.mulesoft.org/schema/mule/mule-apikit"
+	xmlns:secure-properties="http://www.mulesoft.org/schema/mule/secure-properties"
+	xmlns:tls="http://www.mulesoft.org/schema/mule/tls" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="
+http://www.mulesoft.org/schema/mule/mule-apikit http://www.mulesoft.org/schema/mule/mule-apikit/current/mule-apikit.xsd 
+http://www.mulesoft.org/schema/mule/tls http://www.mulesoft.org/schema/mule/tls/current/mule-tls.xsd 
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/secure-properties http://www.mulesoft.org/schema/mule/secure-properties/current/mule-secure-properties.xsd
+http://www.mulesoft.org/schema/mule/api-gateway http://www.mulesoft.org/schema/mule/api-gateway/current/mule-api-gateway.xsd
+http://www.mulesoft.org/schema/mule/anypoint-mq http://www.mulesoft.org/schema/mule/anypoint-mq/current/mule-anypoint-mq.xsd
+http://www.mulesoft.org/schema/mule/os http://www.mulesoft.org/schema/mule/os/current/mule-os.xsd
+http://www.mulesoft.org/schema/mule/oauth http://www.mulesoft.org/schema/mule/oauth/current/mule-oauth.xsd">
+
+ <apikit:config name="ux-publisher-eip-config" api="ux-publisher-eip.raml" outboundHeadersMapName="outboundHeaders" httpStatusVarName="httpStatus" />
+      
+    <http:listener-config name="ux-publisher-eip-httpListenerConfig" doc:name="HTTP Listener config" doc:id="22148d31-6c40-4119-83cf-af3432831a05" >
+		<http:listener-connection protocol="HTTPS" host="${resources.http.api.listener.host}" port="${resources.http.api.listener.port}" tlsContext="tlsContext">
+		</http:listener-connection>
+	</http:listener-config>
+	
+	<tls:context name="tlsContext"  doc:name="TLS Context" doc:id="06fcfdda-54d9-43d7-bb4c-4ce70f0def60">
+		<tls:key-store type="jks" path="${keystore.path}" password="${tls.password}" keyPassword="${tls.password}" alias="${keystore.alias}" />
+	</tls:context>
+	<http:request-config name="HTTP_Request_configuration_Cognito" doc:name="HTTP Request configuration" doc:id="d91563b1-7870-462b-b215-10b1e53403c1" basePath="${aws.apigateway.basepath}" sendBodyMode="ALWAYS">
+		<http:request-connection protocol="${aws.apigateway.protocol}" host="${aws.apigateway.host}">
+      <http:authentication >
+        <oauth:client-credentials-grant-type clientId="#[Mule::p('aws.cognito.client_id')]" clientSecret="#[Mule::p('aws.cognito.client_secret')]" tokenUrl='#["https://${aws.cognito.host}/token"]' encodeClientCredentialsInBody="true">
+          <oauth:token-manager objectStore="Object_store" />
+        </oauth:client-credentials-grant-type>
+      </http:authentication>
+		</http:request-connection>
+	</http:request-config>
+	<api-gateway:autodiscovery apiId="${api.id}" ignoreBasePath="true" doc:name="API Autodiscovery" doc:id="ba260053-47f6-4e5e-89f8-92f0e739e97b" flowRef="ux-publisher-eip-main"/>
+  <os:object-store name="Object_store" doc:name="Object store" doc:id="4d88d458-01de-4984-ab09-6b43a1acd358" />
+	
+  </mule>

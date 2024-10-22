@@ -1,0 +1,36 @@
+#%RAML 1.0 DataType
+
+type: object
+properties:  
+  notification-id:  
+    type: string
+    required: false
+  notification-entity-id: 
+    type: string
+    required: true
+  event-type: 
+    type: string
+    required: true    
+  triggered-by: 
+    type: string
+    required: true
+  target-name: 
+    type: string
+    required: true
+  target-entity-id: 
+    type: string
+    required: false
+  date-created: 
+    type: string
+    required: false
+  additional-identifier-1: 
+    type: string
+    required: false    
+  additional-identifier-2: 
+    type: string
+    required: false        
+  additional-identifier-3: 
+    type: string
+    required: false        
+
+examples: !include ../examples/notification-request-example.raml

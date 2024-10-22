@@ -1,0 +1,20 @@
+#%RAML 1.0 Trait
+
+headers:
+  client_id:
+    description: The Client-ID of the Application. Will be provided by the Portal
+    type: string
+    example: c6VwL5qIGQAhJfmZADoR
+  client_secret:
+    description: The Client-Secret of Application. Will be provided by the Portal.
+    type: string
+    example: dGfk4xKTGPcZ4MvMxpl5
+responses:
+    401:
+      description: Unauthorized, The client_id or client_secret are not valid or the client does not have access.
+    429:
+      description: The client used all of its request quota for the current period.
+    500:
+      description: An error occurred, see the specific message (Only if it is a WSDL endpoint).
+    503:
+      description: Contracts Information Unreachable.

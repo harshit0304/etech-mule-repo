@@ -1,0 +1,19 @@
+api:
+  version: v1
+  id: "${api.id}"
+  urlPrefix: "/api"
+  
+
+
+resources:
+  http:
+    api:
+      listener:
+        host: "0.0.0.0"
+        port: "8081"
+keystore:
+  path: "certs/informa.jks"
+  alias: "selfsigned"  
+  pass: "E+4GOhmC6VNnc5olikiCIQ=="
+  keypass: "E+4GOhmC6VNnc5olikiCIQ=="
+  password: "${tls.password}"                  

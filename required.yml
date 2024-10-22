@@ -1,0 +1,16 @@
+accountRegionOutputFolder: "eip-etech-PubSub-apis"
+
+# Below are the Apis are part of EIP boilerplate please provide the input accordingly
+
+# Provide true or false to get Publisher_API 
+Publisher_API : true
+
+# Provide true or false to get Notification_API
+Notification_API: true
+
+# Provide true or false to get Notification_API
+eip_config: true
+
+
+
+

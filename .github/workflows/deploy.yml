@@ -1,0 +1,189 @@
+name: boilerplate - Build & Deployment
+
+on:
+  push:
+    branches: [branch]
+    paths-ignore:
+      - 'README.md'
+      - 'CODEOWNERS'
+      - '.gitignore'
+  workflow_dispatch:
+    inputs:
+      workerTypePublisher:
+        required: true
+        type: choice
+        options:
+        - 0.1
+        - 0.2
+      workerTypeNotification:
+        required: true
+        type: choice
+        options:
+        - 0.1
+        - 0.2
+      inputFolder:
+        required: true
+
+
+permissions:
+  id-token: write
+  contents: read
+jobs:
+
+ get_json_input:
+  runs-on: ubuntu-latest
+  outputs:
+    publisherApiGatewayHost: ${{ steps.read_json.outputs.publisherApiGatewayHost }}
+    publisherCognitoHost: ${{steps.read_json.outputs.publisherCognitoHost}}
+    InstanceName: ${{ steps.read_json.outputs.InstanceName}}
+    Region: ${{steps.read_json.outputs.Region}}
+    converted_zone: ${{steps.convert.outputs.converted_zone}}
+    
+
+  steps:
+    - name: Clone eip-mule-boilerplate
+      uses: actions/checkout@v2
+
+    - name: Setup Java JDK
+      uses: actions/setup-java@v1
+      with:
+        java-version: 1.8
+
+    - name: Read JSON file
+      id: read_json
+      run: |
+        # Read the JSON file
+        json=$(cat ./${{ github.event.inputs.inputFolder }}/eip-config-files/inputs.json)
+        
+        # Extract values using jq
+        publisherApiGatewayHost=$(echo "$json" | jq -r '.publisherApiGatewayHost')
+        publisherCognitoHost=$(echo "$json" | jq -r '.publisherCognitoHost')
+        InstanceName=$(echo "$json" | jq -r '.InstanceName')
+        Region=$(echo "$json" | jq -r '.Region')
+
+        # Set the extracted values as outputs
+        echo "publisherCognitoHost=$publisherCognitoHost" >> "$GITHUB_OUTPUT"
+        echo "publisherApiGatewayHost=$publisherApiGatewayHost" >> "$GITHUB_OUTPUT"
+        echo "InstanceName=$InstanceName" >> "$GITHUB_OUTPUT"
+        echo "Region=$Region" >> "$GITHUB_OUTPUT"
+        echo "InstanceName: $InstanceName"
+        echo "Region: $Region"
+
+    - name: Run the conversion script
+      id: convert
+      run: |
+        chmod +x ./${{ github.event.inputs.inputFolder }}/eip-config-files/convert-region.sh
+        ./${{ github.event.inputs.inputFolder }}/eip-config-files/convert-region.sh "${{ steps.read_json.outputs.Region }}"
+    
+    - name: Debug Converted Zone
+      run: |
+        echo " Converted zone: ${{ steps.convert.outputs.converted_zone }}"
+
+
+ buildNotificationApi:
+    needs: get_json_input
+    runs-on: ubuntu-latest
+    env:
+      notificationDirectory: ./${{ github.event.inputs.inputFolder }}/eip-notification-api
+
+    steps:
+      - name: Clone eip-mule-boilerplate
+        uses: actions/checkout@v2
+
+      - name: Setup Java JDK
+        uses: actions/setup-java@v1
+        with:
+          java-version: 1.8
+
+      - name: installing any point cli
+        run: | 
+          npm install -g anypoint-cli-v4
+          
+      - name: authenticating with anypoint
+        working-directory: ${{ env.notificationDirectory }} 
+        env: 
+          CONNECTED_APP_CLIENT_ID: ${{secrets.CONNECTED_APP_CLIENT_ID}}
+          CONNECTED_APP_CLIENT_SECRET: ${{secrets.CONNECTED_APP_CLIENT_SECRET}}
+          ORGANIZATION_ID: ${{secrets.ORGANIZATION_ID}}
+        id: "auth"
+        run: |
+          anypoint-cli-v4 conf client_id $CONNECTED_APP_CLIENT_ID
+          anypoint-cli-v4 conf client_secret $CONNECTED_APP_CLIENT_SECRET
+          anypoint-cli-v4 conf organization $ORGANIZATION_ID
+          anypoint-cli-v4 account:environment:list --client_id $CONNECTED_APP_CLIENT_ID --client_secret $CONNECTED_APP_CLIENT_SECRET --organization $ORGANIZATION_ID
+          anypoint-cli-v4 designcenter:project:create --type raml eip-${{ needs.get_json_input.outputs.InstanceName }}-notification
+          anypoint-cli-v4 designcenter:project:upload eip-${{ needs.get_json_input.outputs.InstanceName }}-notification src/main/resources/api
+          anypoint-cli-v4 designcenter:project:publish --apiVersion 1.0.0 eip-${{ needs.get_json_input.outputs.InstanceName }}-notification 
+          anypoint-cli-v4 api-mgr api manage --client_id=$CONNECTED_APP_CLIENT_ID --client_secret=$CONNECTED_APP_CLIENT_SECRET --environment=Dev --type http --deploymentType cloudhub --scheme http --port 8081 --path /notification -m eip-${{ needs.get_json_input.outputs.InstanceName }}-notification 1.0.0 >> demo.txt
+          demo=$(grep -o '[0-9]\+' demo.txt)
+          echo "demo=$demo" >> $GITHUB_OUTPUT
+          echo "checking env variable " 
+          
+      - name: Build and deployment to DEV
+        working-directory: ${{ env.notificationDirectory }}
+        env: 
+          KEY_TO_ENCRYPT: ${{secrets.KEY_TO_ENCRYPT}}
+          ANYPOINT_USERNAME: ${{secrets.CONNECTED_APP_CLIENT_ID}}
+          ANYPOINT_PASSWORD: ${{secrets.CONNECTED_APP_CLIENT_SECRET}}
+          CLOUDHUB_CLIENT_ID: ${{secrets.CLOUDHUB_CLIENT_ID}}
+          CLOUDHUB_CLIENT_SECRET: ${{secrets.CLOUDHUB_CLIENT_SECRET}}
+          TLS_PASSWORD: ${{secrets.TLS_PASSWORD}}
+        run: |
+          mvn deploy -s mvn-settings.xml -DskipMunitTests
+          mvn clean deploy -s mvn-settings.xml -P dev -Denv=dev -DkeyToEncrypt=$KEY_TO_ENCRYPT -Dtls.password=$TLS_PASSWORD -Dapi.id=${{steps.auth.outputs.demo}} -Dworker.type=${{ github.event.inputs.workerTypeNotification }} -Dregion=${{ needs.get_json_input.outputs.converted_zone }} -DInstanceName=${{ needs.get_json_input.outputs.InstanceName }} -Dcloudhub.username=$ANYPOINT_USERNAME -Dcloudhub.password=$ANYPOINT_PASSWORD -Dcloudhub.client_id=$CLOUDHUB_CLIENT_ID -Dcloudhub.client_secret=$CLOUDHUB_CLIENT_SECRET -DmuleDeploy -DskipMunitTests
+
+     
+            
+ buildPublisher:
+    runs-on: ubuntu-latest
+    needs: get_json_input
+    env:
+      publisherDirectory: ./${{ github.event.inputs.inputFolder }}/eip-publisher-api
+
+    steps:
+      - name: Clone eip-mule-boilerplate
+        uses: actions/checkout@v2
+
+      - name: Setup Java JDK
+        uses: actions/setup-java@v1
+        with:
+          java-version: 1.8
+
+      - name: installing any point cli
+        run: | 
+          npm install -g anypoint-cli-v4
+      
+      - name: authenticating with anypoint
+        working-directory: ${{ env.publisherDirectory }} 
+        env: 
+          CONNECTED_APP_CLIENT_ID: ${{secrets.CONNECTED_APP_CLIENT_ID}}
+          CONNECTED_APP_CLIENT_SECRET: ${{secrets.CONNECTED_APP_CLIENT_SECRET}}
+          ORGANIZATION_ID: ${{secrets.ORGANIZATION_ID}}
+        id: "auth"
+        run: |
+          anypoint-cli-v4 conf client_id $CONNECTED_APP_CLIENT_ID
+          anypoint-cli-v4 conf client_secret $CONNECTED_APP_CLIENT_SECRET
+          anypoint-cli-v4 conf organization $ORGANIZATION_ID
+          anypoint-cli-v4 account:environment:list --client_id $CONNECTED_APP_CLIENT_ID --client_secret $CONNECTED_APP_CLIENT_SECRET --organization $ORGANIZATION_ID
+          anypoint-cli-v4 designcenter:project:create --type raml eip-${{ needs.get_json_input.outputs.InstanceName }}-publisher
+          anypoint-cli-v4 designcenter:project:upload eip-${{ needs.get_json_input.outputs.InstanceName }}-publisher src/main/resources/api
+          anypoint-cli-v4 designcenter:project:publish --apiVersion 1.0.0 eip-${{ needs.get_json_input.outputs.InstanceName }}-publisher
+          anypoint-cli-v4 api-mgr api manage --client_id=$CONNECTED_APP_CLIENT_ID --client_secret=$CONNECTED_APP_CLIENT_SECRET --environment=Dev --type http --deploymentType cloudhub --scheme http --port 8081 --path /publisher -m eip-${{ needs.get_json_input.outputs.InstanceName }}-publisher 1.0.0 >> demo.txt
+          demo=$(grep -o '[0-9]\+' demo.txt)
+          echo "demo=$demo" >> $GITHUB_OUTPUT
+          echo "checking env variable " 
+    
+      - name: Build and deployment to Dev
+        working-directory: ${{ env.publisherDirectory }}
+        env: 
+          KEY_TO_ENCRYPT: ${{secrets.KEY_TO_ENCRYPT}}
+          ANYPOINT_USERNAME: ${{secrets.CONNECTED_APP_CLIENT_ID}}
+          ANYPOINT_PASSWORD: ${{secrets.CONNECTED_APP_CLIENT_SECRET}}
+          CLOUDHUB_CLIENT_ID: ${{secrets.CLOUDHUB_CLIENT_ID}}
+          CLOUDHUB_CLIENT_SECRET: ${{secrets.CLOUDHUB_CLIENT_SECRET}}
+          COGNITO_CLIENT_ID: ${{secrets.COGNITO_CLIENT_ID}}
+          COGNITO_CLIENT_SECRET: ${{secrets.COGNITO_CLIENT_SECRET}}
+          TLS_PASSWORD: ${{secrets.TLS_PASSWORD}}
+        run: |
+          mvn deploy -s mvn-settings.xml -DskipMunitTests
+          mvn clean deploy -s mvn-settings.xml -P dev -Denv=dev -DkeyToEncrypt=$KEY_TO_ENCRYPT -Dtls.password=$TLS_PASSWORD -Dapi.id=${{steps.auth.outputs.demo}} -Dworker.type=${{ github.event.inputs.workerTypePublisher }} -Daws.cognito.host=${{ needs.get_json_input.outputs.publisherCognitoHost }} -Daws.apigateway.host=${{ needs.get_json_input.outputs.publisherApiGatewayHost }} -Dregion=${{ needs.get_json_input.outputs.converted_zone }} -DInstanceName=${{ needs.get_json_input.outputs.InstanceName }} -Daws.cognito.client_id=$COGNITO_CLIENT_ID -Daws.cognito.client_secret=$COGNITO_CLIENT_SECRET -Dcloudhub.username=$ANYPOINT_USERNAME -Dcloudhub.password=$ANYPOINT_PASSWORD -Dcloudhub.client_id=$CLOUDHUB_CLIENT_ID -Dcloudhub.client_secret=$CLOUDHUB_CLIENT_SECRET -DmuleDeploy -DskipMunitTests    

@@ -1,0 +1,26 @@
+keystore:
+   path: "certs/informa.jks"
+   alias: "selfsigned"
+   
+resources:
+  http:
+    api:
+      listener:
+        host: "0.0.0.0"
+        port: "8081"
+        protocol: "HTTPS"
+api:
+  version: "v2"
+  id : "${api.id}"
+aws:
+  apigateway:
+    protocol: "HTTPS"
+    method: "POST"
+    basepath: "/eip/"
+    host: "${aws.apigateway.host}"
+  cognito:
+    host: "${aws.cognito.host}"   
+    client_id: "${aws.cognito.client_id}"
+    client_secret: "${aws.cognito.client_secret}"
+
+    

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+	<sub-flow name="post-notifications" doc:id="0a6448e2-98db-447a-93e3-df73bdbdfbf9" >
+		<logger level="INFO" doc:name="Log Start" doc:id="811ab63a-dfd0-49d1-b23a-7d96a79a5670" message="START: post-monitoring-manage-correlation"/>
+		<set-variable value="#[payload]" doc:name="initialPayload" doc:id="68c9e303-9d13-4122-a66b-5de353ae5c72" variableName="initialPayload"/>
+		<logger level="INFO" doc:name="Log payload" doc:id="8742fc24-3357-42f9-9fba-da359884a736" message='#[%dw 2.0 &#10;output application/json&#10;---&#10;{&#10;	initialPayload: payload&#10;}]'/>
+					
+		<ee:transform doc:name="Response" doc:id="eb1dd01c-768e-4dd0-a1eb-c6a83abd04f7">
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+    "success": true,
+    "notification-id": payload."notification-id",
+    "message": "Successfully sent Notification"
+}]]></ee:set-payload>
+					</ee:message>
+			<ee:variables >
+				<ee:set-variable variableName="httpStatus" ><![CDATA[%dw 2.0
+output application/java
+---
+200]]></ee:set-variable>
+			</ee:variables>
+				</ee:transform>
+	</sub-flow>
+</mule>

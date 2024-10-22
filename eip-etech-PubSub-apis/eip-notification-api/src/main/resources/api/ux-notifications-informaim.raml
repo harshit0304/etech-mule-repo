@@ -1,0 +1,65 @@
+#%RAML 1.0
+title: ux-notifications-informaim
+version: v1
+description: The Notifications Experience API.
+mediaType:  [ application/json ]
+protocols:
+  - HTTPS
+
+
+types:
+
+
+  NotificationRequestType: !include types/notification-request-type.raml  
+  NotificationResponseType: !include types/notification-response-type.raml  
+  ErrorResponse: !include /types/error-response.raml
+
+
+#traits:
+ # client-id-required: !include traits/client-id-required.raml
+  
+
+
+
+/notifications:
+    post:
+      headers:
+        Authorization:
+          type: string
+          required: true
+          pattern: ^Bearer\s[a-zA-Z0-9\-._~+/]+=*$
+          example: "Bearer eyJraWQiOiJ2MHJwUVwvZHZ6VWFNM1hOVE8zcHpTSzR5ejBSMzVVOVwvaGpQRlRhMD"
+
+
+      body:
+        application/json:
+          type: NotificationRequestType
+          example:
+            !include examples/notification-request-example.raml
+      responses:
+        201: 
+          body:
+            application/json: 
+              type: NotificationResponseType          
+            
+        400: 
+          description: Bad Request
+          headers:
+            x-correlation-id:
+              description: Specify the transaction identifier received from the request or added by the API otherwise
+              type:        string
+              required:    true
+              example:     359016f0-aef7-44c8-8ebd-015087cca2c0
+          body:
+            application/json:
+              type: ErrorResponse
+              example:
+                {
+                  "error": {
+                    "code": "400",
+                    "message": "A Bad Request Error has occurred",
+                    "description": "Optional Error description",
+                    "referenceId": "486471ed-c075-48bd-b90f-0b28e58f61c9",
+                    "dateTime": "2021-01-01T12:00:00.000Z"
+                  }
+                }
